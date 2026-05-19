@@ -11,7 +11,8 @@ class PostsScreen extends StatefulWidget {
 
 class _PostsScreenState extends State<PostsScreen> {
   final ApiHandler apiHandler = ApiHandler();
-  List<PostModel> currentPosts = [];
+  Map<int, List<PostModel>> loadedPages = {};  // Store pages we already loaded
+  List<PostModel> allLoadedPosts = [];  // All posts in order (page1, then page2...)
   int currentPage = 1;
   bool isLoading = false;
   bool hasMore = true;
@@ -23,6 +24,14 @@ class _PostsScreenState extends State<PostsScreen> {
   }
 
   Future<void> loadPage(int pageNumber) async {
+    // If we already loaded this page before, just show it
+    if (loadedPages.containsKey(pageNumber)) {
+      setState(() {
+        currentPage = pageNumber;
+      });
+      return;
+    }
+
     if (isLoading) return;
     
     setState(() {
@@ -36,7 +45,18 @@ class _PostsScreenState extends State<PostsScreen> {
         if (newPosts.isEmpty) {
           hasMore = false;
         } else {
-          currentPosts = newPosts;
+          loadedPages[pageNumber] = newPosts;
+          
+          // Rebuild allLoadedPosts in order
+          allLoadedPosts = [];
+          for (int i = 1; i <= currentPage; i++) {
+            if (loadedPages.containsKey(i)) {
+              allLoadedPosts.addAll(loadedPages[i]!);
+            } else {
+              break;
+            }
+          }
+          
           currentPage = pageNumber;
         }
         isLoading = false;
@@ -45,7 +65,7 @@ class _PostsScreenState extends State<PostsScreen> {
       setState(() {
         isLoading = false;
       });
-      print('Error: $e');
+      debugPrint('Error: $e');
     }
   }
 
@@ -75,7 +95,7 @@ class _PostsScreenState extends State<PostsScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Page $currentPage',
+              'Page $currentPage (Total loaded: ${allLoadedPosts.length} posts)',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -85,14 +105,14 @@ class _PostsScreenState extends State<PostsScreen> {
           
           // Content area
           Expanded(
-            child: isLoading && currentPosts.isEmpty
+            child: isLoading && allLoadedPosts.isEmpty
                 ? const Center(child: CircularProgressIndicator())
-                : currentPosts.isEmpty
+                : allLoadedPosts.isEmpty
                     ? const Center(child: Text('No posts found'))
                     : ListView.builder(
-                        itemCount: currentPosts.length,
+                        itemCount: allLoadedPosts.length,
                         itemBuilder: (context, index) {
-                          final post = currentPosts[index];
+                          final post = allLoadedPosts[index];
                           return Card(
                             margin: const EdgeInsets.symmetric(
                               horizontal: 16,
@@ -133,6 +153,8 @@ class _PostsScreenState extends State<PostsScreen> {
                                   const SizedBox(height: 12),
                                   Text(
                                     post.body,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                       fontSize: 14,
                                       color: Colors.grey,
@@ -146,8 +168,8 @@ class _PostsScreenState extends State<PostsScreen> {
                       ),
           ),
           
-          // Loading indicator for page changes
-          if (isLoading && currentPosts.isNotEmpty)
+          // Loading indicator
+          if (isLoading && allLoadedPosts.isNotEmpty)
             const Padding(
               padding: EdgeInsets.all(8.0),
               child: CircularProgressIndicator(),
