@@ -3,9 +3,10 @@ import 'dart:convert';
 import '../models/post_model.dart';
 
 class ApiHandler {
-  Future<List<PostModel>> fetchPosts() async {
+  // Fetch only ONE page of posts (10 at a time)
+  Future<List<PostModel>> fetchPostsPage(int pageNumber) async {
     final response = await http.get(
-      Uri.parse('http://jsonplaceholder.typicode.com/posts'),
+      Uri.parse('https://jsonplaceholder.typicode.com/posts?_page=$pageNumber&_limit=10'),
     );
 
     if (response.statusCode == 200) {

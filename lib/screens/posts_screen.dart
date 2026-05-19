@@ -10,31 +10,55 @@ class PostsScreen extends StatefulWidget {
 }
 
 class _PostsScreenState extends State<PostsScreen> {
-  late Future<List<PostModel>> futurePosts;
-  List<PostModel> allPosts = [];
-  int startIndex = 0;
-  final int postsPerPage = 10;
+  final ApiHandler apiHandler = ApiHandler();
+  List<PostModel> currentPosts = [];
+  int currentPage = 1;
+  bool isLoading = false;
+  bool hasMore = true;
 
   @override
   void initState() {
     super.initState();
-    futurePosts = ApiHandler().fetchPosts();
+    loadPage(1);
   }
 
-  void goToNextPost() {
+  Future<void> loadPage(int pageNumber) async {
+    if (isLoading) return;
+    
     setState(() {
-      if (startIndex + postsPerPage < allPosts.length) {
-        startIndex += postsPerPage;
-      }
+      isLoading = true;
     });
+
+    try {
+      List<PostModel> newPosts = await apiHandler.fetchPostsPage(pageNumber);
+      
+      setState(() {
+        if (newPosts.isEmpty) {
+          hasMore = false;
+        } else {
+          currentPosts = newPosts;
+          currentPage = pageNumber;
+        }
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      print('Error: $e');
+    }
   }
 
-  void goToPreviousPost() {
-    setState(() {
-      if (startIndex - postsPerPage >= 0) {
-        startIndex -= postsPerPage;
-      }
-    });
+  void goToNextPage() {
+    if (hasMore) {
+      loadPage(currentPage + 1);
+    }
+  }
+
+  void goToPreviousPage() {
+    if (currentPage > 1) {
+      loadPage(currentPage - 1);
+    }
   }
 
   @override
@@ -45,144 +69,132 @@ class _PostsScreenState extends State<PostsScreen> {
         backgroundColor: Colors.blue,
         centerTitle: true,
       ),
-      body: FutureBuilder(
-        future: futurePosts,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No posts found'));
-          } else {
-            allPosts = snapshot.data!;
-
-            int endIndex = startIndex + postsPerPage;
-            if (endIndex > allPosts.length) {
-              endIndex = allPosts.length;
-            }
-            List<PostModel> visiblePosts = allPosts.sublist(
-              startIndex,
-              endIndex,
-            );
-
-            return Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Showing ${startIndex + 1} - $endIndex of ${allPosts.length}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: visiblePosts.length,
-                    itemBuilder: (context, index) {
-                      final post = visiblePosts[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        elevation: 4,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+      body: Column(
+        children: [
+          // Page indicator
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(
+              'Page $currentPage',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          
+          // Content area
+          Expanded(
+            child: isLoading && currentPosts.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : currentPosts.isEmpty
+                    ? const Center(child: Text('No posts found'))
+                    : ListView.builder(
+                        itemCount: currentPosts.length,
+                        itemBuilder: (context, index) {
+                          final post = currentPosts[index];
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    backgroundColor: Colors.blue,
-                                    radius: 20,
-                                    child: Text(
-                                      '${post.id}', // This shows 1, 2, 3...
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        backgroundColor: Colors.blue,
+                                        child: Text(
+                                          '${post.id}',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          post.title,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      post.title,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    post.body,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey,
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 16),
-                              Text(
-                                post.body,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
+                            ),
+                          );
+                        },
+                      ),
+          ),
+          
+          // Loading indicator for page changes
+          if (isLoading && currentPosts.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: CircularProgressIndicator(),
+            ),
+          
+          // Previous/Next buttons
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Previous button
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: currentPage > 1 ? goToPreviousPage : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                    child: const Text('← Previous'),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: startIndex > 0 ? goToPreviousPost : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.grey,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
-                          child: const Text('← Previous'),
-                        ),
+                const SizedBox(width: 16),
+                
+                // Next button
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: hasMore ? goToNextPage : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: startIndex + postsPerPage < allPosts.length
-                              ? goToNextPost
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
-                            ),
-                          ),
-                          child: const Text('Next →'),
-                        ),
-                      ),
-                    ],
+                    ),
+                    child: const Text('Next →'),
                   ),
                 ),
               ],
-            );
-          }
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
