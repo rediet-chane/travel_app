@@ -11,8 +11,9 @@ class PostsScreen extends StatefulWidget {
 
 class _PostsScreenState extends State<PostsScreen> {
   late Future<List<PostModel>> futurePosts;
-  int currentIndex = 0;
   List<PostModel> allPosts = [];
+  int startIndex = 0;
+  final int postsPerPage = 10;
 
   @override
   void initState() {
@@ -22,16 +23,16 @@ class _PostsScreenState extends State<PostsScreen> {
 
   void goToNextPost() {
     setState(() {
-      if (currentIndex < allPosts.length - 1) {
-        currentIndex++;
+      if (startIndex + postsPerPage < allPosts.length) {
+        startIndex += postsPerPage;
       }
     });
   }
 
   void goToPreviousPost() {
     setState(() {
-      if (currentIndex > 0) {
-        currentIndex--;
+      if (startIndex - postsPerPage >= 0) {
+        startIndex -= postsPerPage;
       }
     });
   }
@@ -55,96 +56,98 @@ class _PostsScreenState extends State<PostsScreen> {
             return const Center(child: Text('No posts found'));
           } else {
             allPosts = snapshot.data!;
-            final post = allPosts[currentIndex];
+
+            int endIndex = startIndex + postsPerPage;
+            if (endIndex > allPosts.length) {
+              endIndex = allPosts.length;
+            }
+            List<PostModel> visiblePosts = allPosts.sublist(
+              startIndex,
+              endIndex,
+            );
 
             return Column(
               children: [
-                // Progress indicator
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'Post ${currentIndex + 1} of ${allPosts.length}',
+                    'Showing ${startIndex + 1} - $endIndex of ${allPosts.length}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-
-                // Card with post content
                 Expanded(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Card(
-                        elevation: 8,
+                  child: ListView.builder(
+                    itemCount: visiblePosts.length,
+                    itemBuilder: (context, index) {
+                      final post = visiblePosts[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        elevation: 4,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(24),
+                          padding: const EdgeInsets.all(16),
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // ID badge
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  'Post #${post.id}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: Colors.blue,
+                                    radius: 20,
+                                    child: Text(
+                                      '${post.id}', // This shows 1, 2, 3...
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      post.title,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 16),
-
-                              // Title
-                              Text(
-                                post.title,
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              const Divider(),
-                              const SizedBox(height: 16),
-
-                              // Body
                               Text(
                                 post.body,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 16,
-                                  height: 1.5,
+                                  fontSize: 14,
+                                  color: Colors.grey,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
-
-                // Navigation buttons
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Previous button
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: currentIndex > 0 ? goToPreviousPost : null,
+                          onPressed: startIndex > 0 ? goToPreviousPost : null,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.grey,
                             foregroundColor: Colors.white,
@@ -157,11 +160,9 @@ class _PostsScreenState extends State<PostsScreen> {
                         ),
                       ),
                       const SizedBox(width: 16),
-
-                      // Next button
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: currentIndex < allPosts.length - 1
+                          onPressed: startIndex + postsPerPage < allPosts.length
                               ? goToNextPost
                               : null,
                           style: ElevatedButton.styleFrom(

@@ -5,7 +5,7 @@ import '../models/post_model.dart';
 class ApiHandler {
   Future<List<PostModel>> fetchPosts() async {
     final response = await http.get(
-      Uri.parse('https://jsonplaceholder.typicode.com/posts'),
+      Uri.parse('http://jsonplaceholder.typicode.com/posts'),
     );
 
     if (response.statusCode == 200) {
